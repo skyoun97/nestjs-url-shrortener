@@ -4,6 +4,7 @@ import {
   NotFoundException,
   ServiceUnavailableException,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Connection, FindOneOptions, Repository } from 'typeorm';
 import { CreateUrlDTO } from './dto/createUrl.dto';
@@ -16,12 +17,12 @@ export class UrlsService {
   constructor(
     @InjectRepository(Url) private urlsRepository: Repository<Url>,
     @InjectRepository(UrlLogs) private urlLogsRepository: Repository<UrlLogs>,
+    private configService: ConfigService,
     private connection: Connection, // for transaction
   ) {}
 
   async shortenUrl(createUrlDTO: CreateUrlDTO): Promise<{ url: string }> {
     const customAccessKey = createUrlDTO.accessKey;
-
     if (customAccessKey === undefined) {
       createUrlDTO.accessKey = await this._getRandomUniqueAccessKey();
     } else {
@@ -30,8 +31,9 @@ export class UrlsService {
 
     const newUrl = await this.urlsRepository.save(createUrlDTO);
 
-    console.dir(newUrl);
-    return { url: `http://localhost:3000/${newUrl.accessKey}` };
+    return {
+      url: `${this.configService.get<string>('rootUri')}/${newUrl.accessKey}`,
+    };
   }
 
   async getRedirectUrl(accessKey: string): Promise<{ url: string }> {
@@ -47,7 +49,7 @@ export class UrlsService {
     if (existLog) {
       this.urlLogsRepository.increment(uniqueAccess, 'accessCount', 1);
     } else {
-      this.urlLogsRepository.save({ ...uniqueAccess, accessCount: 1 });
+      this.urlLogsRepository.insert({ ...uniqueAccess, accessCount: 1 });
     }
 
     return { url: existUrl.url };
@@ -93,14 +95,20 @@ export class UrlsService {
 
   private async _getRandomUniqueAccessKey(): Promise<string> {
     const randomAccessKey = this._getRandomAccessKey();
-    if (this._isUniqueAccessKey(randomAccessKey)) {
+    if (await this._isUniqueAccessKey(randomAccessKey)) {
       return randomAccessKey;
     }
     throw new ServiceUnavailableException('Please, try again');
   }
 
   private _getCurrentDateHour() {
-    return new Date().toISOString().split(':')[0] + ':00:00';
+    let now = new Date();
+    console.log(now.toUTCString());
+    console.log(now.getTimezoneOffset());
+    now = new Date(now.getTime() - now.getTimezoneOffset() * 60 * 1000);
+    const currentDateHour = now.toISOString().split(':')[0] + ':00:00';
+    console.log(currentDateHour);
+    return currentDateHour;
   }
 
   private _getRandomAccessKey(): string {

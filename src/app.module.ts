@@ -1,24 +1,15 @@
 import { Module } from '@nestjs/common';
+import { ConfigModule } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import configuration from 'config/configuration';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
-import { UrlLogs } from './urls/entities/urlLogs.entity';
-import { Url } from './urls/entities/urls.entity';
 import { UrlsModule } from './urls/urls.module';
 
 @Module({
   imports: [
-    TypeOrmModule.forRoot({
-      type: 'mysql',
-      host: 'localhost',
-      port: 3306,
-      username: 'root',
-      password: 'phaphaya',
-      database: 'nestjs_url_shortener',
-      entities: [Url, UrlLogs],
-      synchronize: true,
-      autoLoadEntities: true, // testing
-    }),
+    ConfigModule.forRoot({ load: [configuration], isGlobal: true }),
+    TypeOrmModule.forRoot(),
     UrlsModule,
   ],
   controllers: [AppController],
